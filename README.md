@@ -83,7 +83,9 @@ The words are otherwise the court's own.
 
 ## Put it on a phone, a tablet or a foldable
 
-The page is built to be left running on a stand.
+The page is built to be left running on a stand. The **Add to your device**
+button at the top of the page gives the steps below for whichever device it is
+opened on.
 
 **iPhone or iPad**
 
