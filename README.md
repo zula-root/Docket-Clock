@@ -70,7 +70,7 @@ The record is mostly made of bad days, and a clock should not be. So:
 - Cases known for a killing are left out altogether, even where the sentence
   itself is harmless.
 - One sentence is shown per minute, and every one of them was read before it
-  went in. 365 that passed the automatic rules were taken out by hand; their
+  went in. 366 that passed the automatic rules were taken out by hand; their
   ids are in [build/removed.txt](build/removed.txt).
 - Fifteen minutes appear in the record only in sentences like that. The clock
   leaves them empty and says so.
@@ -135,8 +135,8 @@ Then open http://localhost:8000.
 
 ## How the data is made
 
-Nothing here needs a build step. The two scripts in `build/` only matter if
-you want to make the data again. Both use Python 3.9 or later and nothing
+Nothing here needs a build step. The three scripts in `build/` only matter if
+you want to make the data again. They use Python 3.9 or later and nothing
 outside the standard library.
 
 ```
@@ -144,6 +144,7 @@ curl -O https://static.case.law/ReportersMetadata.json
 mkdir work
 python3 build/harvest.py ReportersMetadata.json work 13 9
 python3 build/curate.py work/candidates.jsonl work/stats.json data build/removed.txt
+python3 build/shown.py
 ```
 
 - **`build/harvest.py`** reads volumes straight from the Caselaw Access
@@ -153,6 +154,13 @@ python3 build/curate.py work/candidates.jsonl work/stats.json data build/removed
   a budget: minutes to run, and gigabytes to read.
 - **`build/curate.py`** scores each sentence for how it reads on a clock and
   writes `data/`. Run it with `--show 0 24` to print its picks for reading.
+- **`build/shown.py`** writes `build/shown.txt` from `data/`, so the list of
+  sentences always matches the clock.
+
+To take a sentence out, add its id to `build/removed.txt` and run the last two
+commands again. `--show` prints the id beside each sentence. The clock then
+picks the next sentence for that minute, or leaves the minute empty. Read the
+new one before it goes out: nobody has yet.
 
 ## Files
 
@@ -160,7 +168,7 @@ python3 build/curate.py work/candidates.jsonl work/stats.json data build/removed
 index.html            the clock: markup, styles and script in one file
 data/00.json … 23     one file per hour: the sentence for each minute
 data/index.json       how often each minute turned up, for the grid
-build/                the two scripts, the removals, and every sentence shown
+build/                the scripts, the removals, and every sentence shown
 manifest.webmanifest  lets a phone install it to the Home Screen
 icon.svg, icon-*.png  the icon
 ```
