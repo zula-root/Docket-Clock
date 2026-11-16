@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- A time under a stroke of highlighter, on the dark of the page at night. -->
+  <rect width="512" height="512" fill="#14120f"/>
+  <rect x="76" y="176" width="360" height="160" rx="20" fill="#ffe04a"/>
+  <text x="256" y="302" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="136" fill="#1c1a15">2:14</text>
+</svg>

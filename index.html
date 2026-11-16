@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Docket Clock</title>
+<meta name="description" content="A clock made of court opinions. Every minute it shows a sentence from a real published opinion that names that exact minute.">
+<meta property="og:title" content="Docket Clock">
+<meta property="og:description" content="Every minute is on the record. A clock made of court opinions.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#14120f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Docket Clock">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=Overpass:wght@400;600;800&family=Overpass+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one sentence set like a book, its citation under it, and the whole
+   day drawn as a grid of dots, one per minute. A sibling of the Transit Clock:
+   same type, same bones, paper instead of slate. */
+:root {
+  color-scheme: light;
+  --bg: #f3f0e7;
+  --fg: #1c1a15;
+  --muted: #6d6759;
+  --line: #d6d0bf;
+  --mark: #ffe04a;          /* the highlighter */
+  --mark-ink: #1c1a15;
+  --dot: #b9b2a0;
+  --now: #b06a00;
+  --accent: #8a5a0a;
+  --serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --sans: "Overpass", "Helvetica Neue", Arial, sans-serif;
+  --mono: "Overpass Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #14120f; --fg: #ece7da; --muted: #9a9483; --line: #2e2a23;
+    --mark: #f2c230; --mark-ink: #17140e; --dot: #4a4538; --now: #f2c230; --accent: #f2c230;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14120f; --fg: #ece7da; --muted: #9a9483; --line: #2e2a23;
+  --mark: #f2c230; --mark-ink: #17140e; --dot: #4a4538; --now: #f2c230; --accent: #f2c230;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body {
+  margin: 0;
+  background: var(--bg); color: var(--fg);
+  font: 14px/1.4 var(--sans);
+  padding-inline: clamp(16px, 6vw, 96px);
+  display: flex; flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+[hidden] { display: none !important; }
+button { font: inherit; color: inherit; }
+button:focus-visible, a:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+header, footer {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px 20px; flex-wrap: wrap;
+  padding-block: 20px;
+  font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+}
+header { position: relative; }
+header .brand { color: var(--fg); font-weight: 800; }
+header .right { display: flex; align-items: center; gap: 16px; }
+header .now { font-family: var(--mono); letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.link {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  color: inherit; background: none; border: 0; padding: 0; cursor: pointer;
+  text-decoration: underline dotted; text-underline-offset: 3px;
+}
+.link:hover, .link[aria-expanded="true"] { color: var(--fg); }
+
+/* The about card */
+.card {
+  position: absolute; top: calc(100% - 6px); right: 0; z-index: 10;
+  width: min(360px, 100%); padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;
+  background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 10px 30px -12px rgba(0, 0, 0, .35);
+  text-transform: none; letter-spacing: 0;
+}
+.card .eyebrow, .card .foot { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--muted); }
+.card .eyebrow { text-transform: uppercase; }
+.card .headline { margin: 0; font-family: var(--serif); font-size: 22px; line-height: 1.2; }
+.card p { margin: 0; font-family: var(--serif); font-size: 15px; line-height: 1.4; }
+.card p.note { font-style: italic; color: var(--muted); font-size: 14px; }
+.card a { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
+.card a:hover { text-decoration-style: solid; }
+.card .foot { border-top: 1px solid var(--line); padding-top: 10px; line-height: 1.6; letter-spacing: .06em; }
+
+main {
+  margin-top: auto; max-width: 50rem; min-width: 0;
+  display: flex; flex-direction: column; gap: 26px;
+  padding-block: 12px;
+  transition: opacity .4s ease;
+}
+main.fading { opacity: 0; }
+
+/* The line above the sentence: the premise, then the time. Without it a
+   newcomer sees a sentence about a patrol car and no reason for it. */
+.kicker { margin: 0 0 -10px; font-size: 12px; line-height: 1.5; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.kicker b { color: var(--fg); font-weight: 600; white-space: nowrap; }
+
+.quote {
+  margin: 0;
+  font-family: var(--serif); font-weight: 350; font-optical-sizing: auto;
+  font-size: clamp(1.5rem, 3.7vw, 2.7rem); line-height: 1.24; letter-spacing: -.008em;
+  text-wrap: pretty;
+}
+/* Court sentences run long. The type steps down so a long one still fits a small screen. */
+.quote.long { font-size: clamp(1.3rem, 3vw, 2.2rem); }
+.quote.longer { font-size: clamp(1.15rem, 2.5vw, 1.85rem); line-height: 1.3; }
+/* The time, exactly as the court wrote it, under a stroke of highlighter. */
+.quote mark {
+  color: var(--mark-ink); background: var(--mark);
+  padding: 0 .16em; margin: 0 -.04em; border-radius: .12em;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  white-space: nowrap;
+}
+.quote .then { display: block; margin-top: .55em; font-size: .62em; line-height: 1.4; color: var(--muted); font-style: italic; }
+
+.cite { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; font-family: var(--serif); font-size: 17px; line-height: 1.35; color: var(--muted); }
+.cite cite { color: var(--fg); }
+.cite a { font-family: var(--sans); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; white-space: nowrap; }
+.cite a:hover { color: var(--fg); border-bottom-style: solid; }
+
+/* The day: sixty minutes across, twenty-four hours down. */
+.day { padding-top: 14px; margin-bottom: auto; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* The grid never takes more than about half the screen's height, so the sentence and the day fit together on a stand. */
+.dayframe { position: relative; max-width: calc((48vh - 28px) * 2.5 + 54px); }
+.day canvas { display: block; width: 100%; border-radius: 10px; outline: 1px solid var(--line); outline-offset: -1px; cursor: crosshair; touch-action: manipulation; }
+.day .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--muted); }
+.tip {
+  position: absolute; z-index: 5; pointer-events: none; transform: translate(-50%, calc(-100% - 10px));
+  font-family: var(--mono); font-size: 11px; letter-spacing: .04em; white-space: nowrap;
+  background: var(--fg); color: var(--bg); padding: 5px 8px 4px; border-radius: 6px;
+}
+
+footer .controls { display: flex; gap: 12px; align-items: center; }
+footer .count { font-family: var(--mono); letter-spacing: .04em; }
+footer button {
+  letter-spacing: inherit; text-transform: inherit;
+  background: none; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px 6px; cursor: pointer; color: var(--fg);
+}
+footer button:hover { border-color: var(--fg); }
+.status { font-family: var(--serif); font-size: 1.4rem; color: var(--muted); margin: 0; }
+
+@media (max-width: 560px) {
+  header .now, header .sep { display: none; }
+  .cite { font-size: 15px; }
+}
+/* Short, wide screens (a phone on its side, a folded phone standing open):
+   the sentence is the clock, so the grid gives way first. */
+@media (max-height: 520px) and (min-width: 561px) { .day { display: none; } main { margin-block: auto; } }
+@media (prefers-reduced-motion: reduce) { main { transition: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="brand">Docket Clock</span>
+  <span class="right">
+    <button type="button" class="link" id="about-btn" aria-expanded="false" aria-controls="about">About</button>
+    <span><span id="today"></span><span class="sep" aria-hidden="true"> · </span><span class="now" id="now">--:--</span></span>
+  </span>
+  <div class="card" id="about" role="dialog" aria-label="About this clock" hidden>
+    <span class="eyebrow">About this clock</span>
+    <p class="headline">A clock made of court opinions.</p>
+    <p>Each minute it shows a sentence from a real, published American court opinion that names that exact minute: a burglar alarm, a milk truck, a jury still out. The words are the court’s own.</p>
+    <p>The grid is the whole day, one dot a minute. The bigger the dot, the more often that minute turns up in the record. Two minutes have never come up at all.</p>
+    <p class="note">The idea is borrowed from the <a href="https://literature-clock.jenevoldsen.com/" target="_blank" rel="noopener">literary clock</a>, which tells the time with sentences from novels. The opinions come from Harvard’s <a href="https://case.law/" target="_blank" rel="noopener">Caselaw Access Project</a>, which put American case law online for anyone to read.</p>
+    <div class="foot" id="about-foot">One sentence is shown for each minute, and each was read before it went in.</div>
+  </div>
+</header>
+
+<main id="card" aria-live="polite">
+  <p class="status">Pulling the record…</p>
+</main>
+
+<div class="day" id="daywrap">
+  <div class="dayframe">
+    <canvas id="day" tabindex="0" role="img" aria-label="The day as a grid: one dot for each of its 1,440 minutes, larger where the minute appears more often in court opinions"></canvas>
+    <div class="tip" id="tip" hidden></div>
+  </div>
+  <div class="legend"><span>● a minute on the record</span><span>○ never mentioned</span><span id="dayhint">Tap a dot to read that minute.</span></div>
+</div>
+
+<footer>
+  <span id="hint">Every minute of the day, as a court once wrote it down.</span>
+  <span class="controls">
+    <button type="button" id="back" hidden>Back to now</button>
+    <span class="count" id="count"></span>
+    <button type="button" id="next">Another account</button>
+  </span>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, "0");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const params = new URLSearchParams(location.search);
+
+// ?theme=dark or ?theme=light overrides the system setting (useful on a device left on a stand).
+if (/^(dark|light)$/.test(params.get("theme") || "")) document.documentElement.dataset.theme = params.get("theme");
+
+/* ------------------------------------------------------------ data
+   data/HH.json   { "HH:MM": [ { q, s: [start, end], c, ct, y, cite, u } ] }
+                  q is the sentence, s marks where the time sits inside it,
+                  the rest is the citation and a link to the full opinion.
+   data/index.json  how often each minute turned up across everything read. */
+const files = {};
+const load = name => files[name] ??= fetch(`data/${name}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+
+/* ------------------------------------------------------------ time
+   Three clocks are in play. The real one. A pinned one: ?at=02:14 holds the
+   page at that minute so a link can point at a single sentence. And the
+   minute being read, which is the real or pinned minute unless the reader has
+   tapped another one on the grid. */
+const pinned = (() => {
+  const m = (params.get("at") || "").match(/^(\d{1,2}):?(\d{2})$/);
+  return m && +m[1] < 24 && +m[2] < 60 ? +m[1] * 60 + +m[2] : null;
+})();
+const nowMin = () => { if (pinned !== null) return pinned; const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+let browsing = null;                                  // a minute chosen on the grid, or null to follow the clock
+const viewMin = () => browsing ?? nowMin();
+const key = min => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
+
+// Times are written the way the reader's own clock writes them (2:14 a.m. or 02:14).
+const viewer12 = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12;
+function say(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  if (!viewer12) return `${pad(h)}:${pad(m)}`;
+  if (min === 0) return "midnight";
+  if (min === 720) return "noon";
+  return `${h % 12 || 12}:${pad(m)} ${h < 12 ? "a.m." : "p.m."}`;
+}
+
+/* ------------------------------------------------------------ the sentence */
+let list = [], idx = 0, shown = "";
+
+function render() {
+  const min = viewMin(), t = say(min), x = list[idx];
+  const kicker = `<p class="kicker">Every minute is on the record. <b>This is ${esc(t)}${t.endsWith(".") ? "" : "."}</b></p>`;
+  if (!x) {
+    // An empty minute, and there are two kinds. A couple of minutes turned up nowhere in
+    // everything read. A few more turned up only in sentences nobody should meet on a clock:
+    // those are left empty on purpose, and the page says so.
+    const named = grid.count(min) > 0, stop = t.endsWith(".") ? "" : ".";
+    $("card").innerHTML = `${kicker}
+      <p class="quote">${named ? `The record mentions <mark>${esc(t)}</mark>, but not in a sentence fit for a clock.` : `No court has had anything to say about <mark>${esc(t)}</mark>${stop}`}
+        <span class="then">${named ? "Some minutes are only on the record for the worst reasons. This is one of them." : "Not in anything read so far."} The record picks up again a minute later.</span></p>`;
+    $("count").textContent = ""; $("next").hidden = true;
+    return;
+  }
+  const [i, j] = x.s;
+  const size = x.q.length > 250 ? " longer" : x.q.length > 170 ? " long" : "";
+  $("card").innerHTML = `${kicker}
+    <p class="quote${size}">${esc(x.q.slice(0, i))}<mark>${esc(x.q.slice(i, j))}</mark>${esc(x.q.slice(j))}</p>
+    <p class="cite"><span><cite>${esc(x.c)}</cite>, ${esc(x.cite)} (${esc([x.ct, x.y].filter(Boolean).join(" "))})</span>
+      <a href="${esc(x.u)}" target="_blank" rel="noopener">Read the opinion ↗</a></p>`;
+  $("count").textContent = list.length > 1 ? `${idx + 1} / ${list.length}` : "";
+  $("next").hidden = list.length < 2;
+  $("next").textContent = /^\d/.test(t) ? `Another ${t.replace(/ [ap]\.m\.$/, "")}` : "Another account";
+}
+
+function show(i, fade = true) {
+  idx = list.length ? (i + list.length) % list.length : 0;
+  if (!fade || reduced()) return render();
+  $("card").classList.add("fading");
+  setTimeout(() => { render(); $("card").classList.remove("fading"); }, 320);
+}
+
+async function refresh(force) {
+  const real = new Date(), min = viewMin();
+  $("now").textContent = say(nowMin());
+  $("today").textContent = real.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+  if (key(min) === shown && !force) return;
+  const first = shown === "";
+  shown = key(min);
+  try {
+    const day = await load(pad(Math.floor(min / 60)));
+    if (min % 60 >= 55) load(pad((Math.floor(min / 60) + 1) % 24)).catch(() => {});      // have the next hour ready
+    list = day[key(min)] || [];
+    show(0, !first);                                   // the first sentence is the one chosen to open the minute
+    $("hint").textContent = browsing === null ? "Quoted from a real court opinion that names this exact minute." : `Reading ${say(min)}. The clock itself says ${say(nowMin())}.`;
+    $("back").hidden = browsing === null;
+    grid.draw();
+  } catch (e) {
+    shown = "";
+    $("card").innerHTML = `<p class="status">The record didn’t load. Serve this folder over HTTP (for example <code>python3 -m http.server</code>) and reload.</p>`;
+  }
+}
+function tick() { refresh(); setTimeout(tick, 1000 - (Date.now() % 1000) + 5); }
+
+/* ------------------------------------------------------------ the day: 1,440 dots
+   Sixty minutes across, twenty-four hours down. A dot's size is how often
+   that minute turned up in everything read, on a log scale, so two in the
+   morning does not drown out half past ten. Minutes nobody has named are
+   drawn as empty rings. The minute on screen is filled in the accent colour. */
+const grid = (() => {
+  const canvas = $("day"), ctx = canvas.getContext("2d"), tip = $("tip");
+  let counts = null, W = 0, H = 0, cell = 0, left = 0, top = 0, colors = {};
+  const LABEL = 44;                                    // room on the left for the hour labels
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const k of ["fg", "bg", "muted", "line", "dot", "now"]) colors[k] = cs.getPropertyValue(`--${k}`).trim();
+  }
+  function resize() {
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    W = canvas.clientWidth; if (!W) return;
+    left = W < 480 ? 26 : LABEL; top = 18;
+    cell = (W - left - 10) / 60;
+    H = Math.round(top + cell * 24 + 10);
+    canvas.style.height = H + "px";
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+  const at = (m) => [left + (m % 60 + .5) * cell, top + (Math.floor(m / 60) + .5) * cell];
+  function draw() {
+    if (!W || !counts) return;
+    ctx.clearRect(0, 0, W, H);
+    const big = Math.log(1 + 400), cur = viewMin(), real = nowMin();
+    ctx.font = `${W < 480 ? 8 : 10}px "Overpass Mono", ui-monospace, Menlo, monospace`;
+    ctx.fillStyle = colors.muted; ctx.textBaseline = "middle"; ctx.textAlign = "right";
+    for (const h of [0, 6, 12, 18]) ctx.fillText(viewer12 ? ["12 AM", "6 AM", "NOON", "6 PM"][h / 6] : pad(h) + ":00", left - 8, at(h * 60)[1]);
+    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    for (const m of [0, 15, 30, 45]) ctx.fillText(":" + pad(m), at(m)[0], top - 6);
+    for (let m = 0; m < 1440; m++) {
+      const [x, y] = at(m), n = counts[m];
+      if (m === cur) continue;
+      if (!n) {
+        ctx.beginPath(); ctx.arc(x, y, cell * .2, 0, 6.2832); ctx.strokeStyle = colors.muted; ctx.lineWidth = 1; ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.arc(x, y, Math.max(.7, cell * (.1 + .3 * Math.min(1, Math.log(1 + n) / big))), 0, 6.2832);
+        ctx.fillStyle = colors.dot; ctx.fill();
+      }
+    }
+    if (real !== cur) {                                // while browsing, the real minute keeps a ring
+      const [x, y] = at(real); ctx.beginPath(); ctx.arc(x, y, cell * .46, 0, 6.2832); ctx.strokeStyle = colors.now; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    const [x, y] = at(cur);
+    ctx.beginPath(); ctx.arc(x, y, Math.max(3, cell * .5), 0, 6.2832); ctx.fillStyle = colors.now; ctx.fill();
+  }
+  function minuteAt(ev) {
+    const r = canvas.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
+    const c = Math.floor((x - left) / cell), row = Math.floor((y - top) / cell);
+    return c >= 0 && c < 60 && row >= 0 && row < 24 ? row * 60 + c : null;
+  }
+  canvas.addEventListener("pointermove", ev => {
+    const m = ev.pointerType === "mouse" ? minuteAt(ev) : null;
+    if (m === null || !counts) { tip.hidden = true; return; }
+    const [x, y] = at(m), n = counts[m];
+    tip.textContent = `${say(m)} · ${n ? (n >= 999 ? "999+" : n) + (n === 1 ? " mention" : " mentions") : "never mentioned"}`;
+    tip.style.left = x + "px"; tip.style.top = y + "px"; tip.hidden = false;
+  });
+  canvas.addEventListener("pointerleave", () => { tip.hidden = true; });
+  canvas.addEventListener("click", ev => { const m = minuteAt(ev); if (m !== null) browse(m); });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readColors(); draw(); });
+  new ResizeObserver(resize).observe(canvas);
+  readColors();
+  load("index").then(ix => {
+    counts = ix.counts; draw();
+    $("about-foot").textContent = `${ix.found.toLocaleString()} sentences found in about ${(Math.round(ix.volumes / 100) * 100).toLocaleString()} volumes of opinions. One is shown for each minute, and each was read before it went in. Sentences about violence, illness or children are left out.`;
+  }).catch(() => { $("daywrap").hidden = true; });
+  return { draw, resize, count: m => counts ? counts[m] : 0 };
+})();
+
+/* Reading another minute, and coming back */
+function browse(min) {
+  browsing = min === nowMin() ? null : (min + 1440) % 1440;
+  refresh(true);
+}
+
+/* ------------------------------------------------------------ the about card */
+function toggleAbout(open) {
+  const card = $("about"), btn = $("about-btn");
+  open ??= card.hidden;
+  card.hidden = !open; btn.setAttribute("aria-expanded", String(open));
+}
+$("about-btn").addEventListener("click", e => { e.stopPropagation(); toggleAbout(); });
+document.addEventListener("click", e => { if (!$("about").hidden && !e.target.closest("#about")) toggleAbout(false); });
+
+/* ------------------------------------------------------------ wiring */
+$("next").addEventListener("click", () => show(idx + 1));
+$("back").addEventListener("click", () => browse(nowMin()));
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { if (!$("about").hidden) { toggleAbout(false); $("about-btn").focus(); } else if (browsing !== null) browse(nowMin()); return; }
+  if (e.target.closest("button, a")) return;
+  if (e.key === " ") { e.preventDefault(); show(idx + 1); }
+  if (e.key === "ArrowRight") browse(viewMin() + 1);          // step through the day a minute at a time
+  if (e.key === "ArrowLeft") browse(viewMin() - 1);
+  if (e.key === "ArrowDown") { e.preventDefault(); browse(viewMin() + 60); }
+  if (e.key === "ArrowUp") { e.preventDefault(); browse(viewMin() - 60); }
+});
+
+/* Stay awake
+   Left open on a phone or tablet stand, this is a desk clock, and a desk clock
+   should not go dark after thirty seconds. Where the browser allows it, the
+   page asks to keep the screen on while it is visible. The browser drops the
+   lock whenever the page is hidden, so it is asked for again on return. */
+async function stayAwake() {
+  if (!("wakeLock" in navigator) || document.visibilityState !== "visible") return;
+  try { await navigator.wakeLock.request("screen"); } catch {}   // refused on low battery; the clock still works
+}
+document.addEventListener("visibilitychange", stayAwake);
+stayAwake();
+
+tick();
+</script>
+</body>
+</html>
