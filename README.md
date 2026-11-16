@@ -94,9 +94,15 @@ on the stand.
 
 **A foldable, such as iPhone Duo**
 
-Follow the same steps, then open the phone part-way and stand it on the desk.
-On a short, wide screen the page drops the grid and lets the sentence fill the
-display.
+Follow the same steps. Then fold the phone into a tent with the outer screen
+facing you, or stand it open like a book.
+
+On a small, wide screen the clock switches to its **stand face** by itself:
+only the sentence, set as large as will fit, its citation, and the time in the corner.
+A phone turned on its side does the same.
+
+This is the page running full screen. It is not iOS StandBy, which only shows
+widgets from installed apps and so cannot show a web page.
 
 **Android**
 
@@ -109,6 +115,7 @@ Two options go on the end of the address:
 | --- | --- |
 | `?theme=dark` or `?theme=light` | Holds one theme whatever the device is set to. Dark suits a bedside. |
 | `?at=02:14` | Holds the clock at one minute, to share a single sentence. |
+| `?face=stand` | The stand face on any screen. `?face=full` keeps the whole page. |
 
 ## Run it locally
 

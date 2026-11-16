@@ -53,7 +53,7 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+html { padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 body {
   margin: 0;
   background: var(--bg); color: var(--fg);
@@ -160,9 +160,17 @@ footer button:hover { border-color: var(--fg); }
   header .now, header .sep { display: none; }
   .cite { font-size: 15px; }
 }
-/* Short, wide screens (a phone on its side, a folded phone standing open):
-   the sentence is the clock, so the grid gives way first. */
-@media (max-height: 520px) and (min-width: 561px) { .day { display: none; } main { margin-block: auto; } }
+/* The stand face: only the sentence, its citation, and the time in the corner.
+   The script decides when it is on, and sets --fit to the largest type that fits. */
+.stand body { padding-inline: clamp(20px, 5vw, 64px); }
+.stand header { padding-block: 16px 0; }
+.stand header .link, .stand #today, .stand header .sep { display: none; }
+.stand header .now { color: var(--fg); font-size: 14px; }
+.stand .kicker, .stand .day, .stand footer { display: none; }
+.stand main { margin-block: auto; max-width: none; gap: clamp(10px, 2.4vh, 22px); padding-block: 10px 22px; }
+.stand .quote, .stand .quote.long, .stand .quote.longer { font-size: var(--fit, 2rem); line-height: 1.2; }
+.stand .cite { font-size: clamp(12px, 2.6vh, 17px); }
+.stand .cite a { display: none; }
 @media (prefers-reduced-motion: reduce) { main { transition: none; } }
 </style>
 </head>
@@ -262,6 +270,7 @@ function render() {
       <p class="quote">${named ? `The record mentions <mark>${esc(t)}</mark>, but not in a sentence fit for a clock.` : `No court has had anything to say about <mark>${esc(t)}</mark>${stop}`}
         <span class="then">${named ? "Some minutes are only on the record for the worst reasons. This is one of them." : "Not in anything read so far."} The record picks up again a minute later.</span></p>`;
     $("count").textContent = ""; $("next").hidden = true;
+    fit();
     return;
   }
   const [i, j] = x.s;
@@ -273,6 +282,7 @@ function render() {
   $("count").textContent = list.length > 1 ? `${idx + 1} / ${list.length}` : "";
   $("next").hidden = list.length < 2;
   $("next").textContent = /^\d/.test(t) ? `Another ${t.replace(/ [ap]\.m\.$/, "")}` : "Another account";
+  fit();
 }
 
 function show(i, fade = true) {
@@ -378,6 +388,36 @@ const grid = (() => {
   return { draw, resize, count: m => counts ? counts[m] : 0 };
 })();
 
+/* ------------------------------------------------------------ the stand face
+   Stood on a desk, a phone is a small, wide screen read from across a room.
+   The stand face is the clock cut down to what can be read from there: the
+   sentence, set as large as will fit, its citation, and the time in the corner.
+   It comes on by itself on a short, wide screen (a phone on its side, a folded
+   phone standing like a tent). ?face=stand asks for it on any screen, and
+   ?face=full keeps the whole page.
+
+   This is the page running full screen, not iOS StandBy. StandBy only shows
+   widgets from installed apps, which a web page cannot provide. */
+const faceParam = new URLSearchParams(location.search).get("face");
+const standQuery = matchMedia("(max-height: 540px) and (min-aspect-ratio: 5/4)");
+function fit() {
+  const q = document.querySelector("#card .quote");
+  if (!q) return;
+  if (!document.documentElement.classList.contains("stand")) { q.style.removeProperty("--fit"); return; }
+  // The largest type at which nothing spills off the screen. A clock does not scroll.
+  const fits = () => document.documentElement.scrollHeight <= innerHeight + 1;
+  let lo = 14, hi = Math.round(Math.min(innerHeight * .17, innerWidth * .085));
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; q.style.setProperty("--fit", mid + "px"); if (fits()) lo = mid; else hi = mid; }
+  q.style.setProperty("--fit", lo + "px");
+}
+function setFace() {
+  document.documentElement.classList.toggle("stand", faceParam === "stand" || (faceParam !== "full" && standQuery.matches));
+  fit();
+}
+standQuery.addEventListener("change", setFace);
+addEventListener("resize", fit);
+if (document.fonts) document.fonts.ready.then(fit);
+
 /* Reading another minute, and coming back */
 function browse(min) {
   browsing = min === nowMin() ? null : (min + 1440) % 1440;
@@ -418,6 +458,7 @@ async function stayAwake() {
 document.addEventListener("visibilitychange", stayAwake);
 stayAwake();
 
+setFace();
 tick();
 </script>
 </body>
