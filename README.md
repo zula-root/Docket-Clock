@@ -13,9 +13,9 @@ minute.
 Once GitHub Pages is switched on for this repository, the clock lives at
 https://zula-root.github.io/Docket-Clock/.
 
-![The Docket Clock on a foldable phone standing open on a desk, showing the sentence for midnight](docs/duo.jpg)
+![The Docket Clock on a phone folded into a tent on a desk, showing the sentence for midnight](docs/duo-stand.jpg)
 
-*A rendering of the clock on an iPhone Duo, not a photograph.*
+*The clock's stand face on a folded iPhone Duo. A rendering, not a photograph.*
 
 ## Where the idea comes from
 
@@ -31,6 +31,10 @@ reports are full of minutes: when the alarm went off, when the jury came back,
 when the fax arrived. The opinions are public and in the public domain.
 
 ## What is on the page
+
+![The whole page on the same phone opened like a book: the sentence, its citation and the day as a grid of dots](docs/duo.jpg)
+
+*The whole page, on the same phone opened like a book. Also a rendering.*
 
 - **The sentence**, quoted as the court wrote it, with the time under a stroke
   of highlighter.
@@ -98,8 +102,9 @@ Follow the same steps. Then fold the phone into a tent with the outer screen
 facing you, or stand it open like a book.
 
 On a small, wide screen the clock switches to its **stand face** by itself:
-only the sentence, set as large as will fit, its citation, and the time in the corner.
-A phone turned on its side does the same.
+only the sentence, set as large as will fit, its citation, and the time in the
+corner. That is the picture at the top of this page. A phone turned on its
+side does the same.
 
 This is the page running full screen. It is not iOS StandBy, which only shows
 widgets from installed apps and so cannot show a web page.
@@ -169,4 +174,4 @@ icon.svg, icon-*.png  the icon
 - A sibling: the [Transit Clock](https://github.com/zula-root/Transit-Clock),
   which tells the time with train departures.
 
-![The Transit Clock and the Docket Clock side by side on two foldable phones](docs/duo-pair.jpg)
+![The Transit Clock and the Docket Clock side by side on two folded phones](docs/duo-stand-pair.jpg)
