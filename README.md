@@ -13,6 +13,10 @@ minute.
 Once GitHub Pages is switched on for this repository, the clock lives at
 https://zula-root.github.io/Docket-Clock/.
 
+![The Docket Clock on a foldable phone standing open on a desk, showing the sentence for midnight](docs/duo.jpg)
+
+*A rendering of the clock on an iPhone Duo, not a photograph.*
+
 ## Where the idea comes from
 
 The [literary clock](https://literature-clock.jenevoldsen.com/) tells the time
@@ -157,3 +161,5 @@ icon.svg, icon-*.png  the icon
 - Type: Newsreader, Overpass and Overpass Mono.
 - A sibling: the [Transit Clock](https://github.com/zula-root/Transit-Clock),
   which tells the time with train departures.
+
+![The Transit Clock and the Docket Clock side by side on two foldable phones](docs/duo-pair.jpg)
