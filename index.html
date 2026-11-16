@@ -184,6 +184,24 @@ footer button {
 }
 footer button:hover { border-color: var(--fg); }
 .status { font-family: var(--serif); font-size: 1.4rem; color: var(--muted); margin: 0; }
+/* The pair
+   This clock is one of two Sentence Clocks, and they are one project. The switch floats in the
+   corner of the page so that either can be reached from the other. It is not shown on the
+   stand face or once the clock is installed, where the page is being a clock and nothing else. */
+.pair {
+  position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px)); z-index: 20;
+  display: flex; gap: 2px; padding: 4px; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--line); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .45);
+  font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+}
+.pair a, .pair span { padding: 9px 13px 7px; border-radius: 999px; white-space: nowrap; }
+.pair a { color: var(--muted); text-decoration: none; }
+.pair a:hover { color: var(--fg); }
+.pair span { background: var(--fg); color: var(--bg); }
+footer { padding-bottom: 76px; }   /* room for the switch, so it never sits on the last line */
+.stand .pair { display: none; }
+@media (display-mode: standalone) { .pair { display: none; } }
+
 
 @media (max-width: 560px) {
   header .now, header .sep { display: none; }
@@ -263,6 +281,11 @@ footer button:hover { border-color: var(--fg); }
   </span>
   <p class="made">Made with <span role="img" aria-label="love">❤️</span> by <a href="https://zularoot.com/" target="_blank" rel="noopener">Zula Root</a></p>
 </footer>
+
+<nav class="pair" aria-label="The two Sentence Clocks">
+  <a href="../Transit-Clock/" title="The Transit Clock: the time, in real train departures">Transit</a>
+  <span aria-current="page">Docket</span>
+</nav>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -587,6 +610,10 @@ async function stayAwake() {
 }
 document.addEventListener("visibilitychange", stayAwake);
 stayAwake();
+
+// The switch to the other clock carries the theme along, when the address is holding one.
+{ const t = new URLSearchParams(location.search).get("theme");
+  if (t === "dark" || t === "light") for (const a of document.querySelectorAll(".pair a")) a.href += `?theme=${t}`; }
 
 setFace();
 tick();

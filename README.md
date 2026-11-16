@@ -4,6 +4,11 @@ A clock made of court opinions. For every minute of the day it shows one
 sentence from a real, published American court opinion that names that exact
 minute.
 
+It is one of two **Sentence Clocks**. The other is the
+[Transit Clock](https://github.com/zula-root/Transit-Clock), which tells the
+time in real train departures. A switch in the corner of each page leads to
+the other.
+
 > At **midnight** the Lewis blew her steam whistle several times, sent up
 > rockets, and burned blue lights, to indicate her dangerous position and need
 > of assistance.
