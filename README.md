@@ -15,8 +15,7 @@ the other.
 >
 > *Lewis v. A Lot of Whalebone*, 51 F. 916 (N.D. Cal. 1892)
 
-Once GitHub Pages is switched on for this repository, the clock lives at
-https://zula-root.github.io/Docket-Clock/.
+**Live:** https://zula-root.github.io/Docket-Clock/
 
 ![The Docket Clock on a phone folded into a tent on a desk, showing the sentence for midnight](docs/duo-stand.jpg)
 
