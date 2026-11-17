@@ -253,10 +253,9 @@ footer { padding-bottom: 84px; }   /* room for the switch, so it never sits on t
   <div class="card" id="about" role="dialog" aria-label="About this clock" hidden>
     <span class="eyebrow">About this clock</span>
     <p class="headline">A clock made of court opinions.</p>
-    <p>Each minute it shows a sentence from a real, published American court opinion that names that exact minute: a burglar alarm, a milk truck, a jury still out. The words are the court’s own.</p>
-    <p>The grid is the whole day, one dot a minute. The bigger the dot, the more often that minute turns up in the record. Two minutes have never come up at all.</p>
-    <p class="note">The idea is borrowed from the <a href="https://literature-clock.jenevoldsen.com/" target="_blank" rel="noopener">literary clock</a>, which tells the time with sentences from novels. The opinions come from Harvard’s <a href="https://case.law/" target="_blank" rel="noopener">Caselaw Access Project</a>, which put American case law online for anyone to read.</p>
-    <div class="foot" id="about-foot">One sentence is shown for each minute, and each was read before it went in.</div>
+    <p>Each minute it shows a sentence from a real, published American court opinion that names that exact minute.</p>
+    <p>The grid is the whole day. Each dot represents a minute. The bigger the dot, the more often that minute turns up in the record.</p>
+    <p class="note">The idea is borrowed from the <a href="https://literature-clock.jenevoldsen.com/" target="_blank" rel="noopener">Literature Clock</a>, which tells the time with sentences from novels. The opinions come from Harvard’s <a href="https://case.law/" target="_blank" rel="noopener">Caselaw Access Project</a>, a free online library of American court cases.</p>
   </div>
 </header>
 
@@ -457,7 +456,6 @@ const grid = (() => {
   readColors();
   load("index").then(ix => {
     counts = ix.counts; draw();
-    $("about-foot").textContent = `${ix.found.toLocaleString()} sentences found in about ${(Math.round(ix.volumes / 100) * 100).toLocaleString()} volumes of opinions. One is shown for each minute, and each was read before it went in. Sentences about violence, illness or children are left out.`;
   }).catch(() => { $("daywrap").hidden = true; });
   return { draw, resize, count: m => counts ? counts[m] : 0 };
 })();
