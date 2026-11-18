@@ -227,7 +227,30 @@ footer { padding-bottom: 84px; }   /* room for the switch, so it never sits on t
 .stand .cite { font-size: clamp(12px, 2.6vh, 17px); }
 .stand .cite a { display: none; }
 @media (prefers-reduced-motion: reduce) { main { transition: none; } }
+/* Embedded in another page (?embed=1): only the clock itself, on that page's own
+   background (?bg=f7f5f0), with no header, footer or switch, at its natural height. */
+html.embed, html.embed body { height: auto; }
+html.embed { padding: 0; }
+html.embed body { padding: 0; background: transparent; }
+html.embed header, html.embed footer, html.embed .pair { display: none !important; }
+html.embed main { margin-top: 0; padding-block: 0; }
+html.embed .map, html.embed .day { margin-bottom: 0; }
+html.embed .dayframe { max-width: none; }
+html.embed .map canvas { max-height: none; }
 </style>
+<script>
+/* Embedded in another page: tell it how tall the clock is, so it can fit the frame. */
+{ const p = new URLSearchParams(location.search);
+  if (p.has("embed")) {
+    const root = document.documentElement;
+    root.classList.add("embed");
+    const bg = p.get("bg") || "";
+    if (/^[0-9a-f]{6}$/i.test(bg)) root.style.setProperty("--bg", "#" + bg);
+    const tell = () => parent.postMessage({ sentenceClock: location.pathname, height: Math.ceil(document.body.getBoundingClientRect().height) }, "*");
+    addEventListener("DOMContentLoaded", () => { new ResizeObserver(tell).observe(document.body); tell(); });
+  }
+}
+</script>
 </head>
 <body>
 
@@ -403,7 +426,7 @@ const grid = (() => {
   function resize() {
     const dpr = Math.min(2, devicePixelRatio || 1);
     W = canvas.clientWidth; if (!W) return;
-    left = W < 480 ? 26 : LABEL; top = 18;
+    left = W < 480 ? 36 : LABEL; top = 18;
     cell = (W - left - 10) / 60;
     H = Math.round(top + cell * 24 + 10);
     canvas.style.height = H + "px";
