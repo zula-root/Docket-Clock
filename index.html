@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Docket Clock</title>
+<meta name="description" content="A clock made of court opinions. Every minute it shows a sentence from a real published opinion that names that exact minute.">
+<meta property="og:title" content="Docket Clock">
+<meta property="og:description" content="Every minute is on the record. A clock made of court opinions.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#14120f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Docket Clock">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=Overpass:wght@400;600;800&family=Overpass+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one sentence set like a book, its citation under it, and the whole
+   day drawn as a grid of dots, one per minute. A sibling of the Transit Clock:
+   same type, same bones, paper instead of slate. */
+:root {
+  color-scheme: light;
+  --bg: #f3f0e7;
+  --fg: #1c1a15;
+  --muted: #6d6759;
+  --line: #d6d0bf;
+  --mark: #ffe04a;          /* the highlighter */
+  --mark-ink: #1c1a15;
+  --dot: #b9b2a0;
+  --now: #b06a00;
+  --accent: #8a5a0a;
+  --serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --sans: "Overpass", "Helvetica Neue", Arial, sans-serif;
+  --mono: "Overpass Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #14120f; --fg: #ece7da; --muted: #9a9483; --line: #2e2a23;
+    --mark: #f2c230; --mark-ink: #17140e; --dot: #4a4538; --now: #f2c230; --accent: #f2c230;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14120f; --fg: #ece7da; --muted: #9a9483; --line: #2e2a23;
+  --mark: #f2c230; --mark-ink: #17140e; --dot: #4a4538; --now: #f2c230; --accent: #f2c230;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+html { padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+body {
+  margin: 0;
+  background: var(--bg); color: var(--fg);
+  font: 14px/1.4 var(--sans);
+  padding-inline: clamp(16px, 6vw, 96px);
+  display: flex; flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+[hidden] { display: none !important; }
+button { font: inherit; color: inherit; }
+button:focus-visible, a:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+header, footer {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px 20px; flex-wrap: wrap;
+  padding-block: 20px;
+  font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+}
+header { position: relative; }
+header .brand { color: var(--fg); font-weight: 800; }
+header .right { display: flex; align-items: center; gap: 16px; }
+header .now { font-family: var(--mono); letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.link {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  color: inherit; background: none; border: 0; padding: 0; cursor: pointer;
+  text-decoration: underline dotted; text-underline-offset: 3px;
+}
+.link:hover, .link[aria-expanded="true"] { color: var(--fg); }
+
+/* The about card */
+.card {
+  position: absolute; top: calc(100% - 6px); right: 0; z-index: 10;
+  width: min(360px, 100%); padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;
+  background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 10px 30px -12px rgba(0, 0, 0, .35);
+  text-transform: none; letter-spacing: 0;
+}
+.card .eyebrow, .card .foot { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--muted); }
+.card .eyebrow { text-transform: uppercase; }
+.card .headline { margin: 0; font-family: var(--serif); font-size: 22px; line-height: 1.2; }
+.card p { margin: 0; font-family: var(--serif); font-size: 15px; line-height: 1.4; }
+.card p.note { font-style: italic; color: var(--muted); font-size: 14px; }
+.card a { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
+.card a:hover { text-decoration-style: solid; }
+.card .foot { border-top: 1px solid var(--line); padding-top: 10px; line-height: 1.6; letter-spacing: .06em; }
+
+/* The one loud thing in the header: how to keep the clock. It is filled where everything else is outlined. */
+header .right { margin-left: auto; }
+header .add-btn {
+  font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap;
+  color: var(--bg); background: var(--fg); border: 1px solid var(--fg); border-radius: 999px; padding: 8px 14px 6px; cursor: pointer;
+}
+header .add-btn:hover, header .add-btn[aria-expanded="true"] { color: var(--fg); background: none; }
+/* The three kinds of device it can be added to, as small marks before the words. */
+header .add-btn { display: inline-flex; align-items: center; gap: 9px; }
+header .add-btn .platforms { display: inline-flex; align-items: center; gap: 6px; margin-top: -2px; }
+header .add-btn .platforms svg { width: 12px; height: 12px; fill: currentColor; }
+@media (max-width: 600px) { header .add-btn .platforms { display: none; } }
+/* Inside its card: one tab for each kind of device, then the steps for the one chosen. */
+.card .tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.card .tabs button {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px 4px; cursor: pointer;
+}
+.card .tabs button:hover { color: var(--fg); border-color: var(--muted); }
+.card .tabs button[aria-selected="true"] { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+.card .steps { display: flex; flex-direction: column; gap: 12px; }
+.card ol, .card ul { margin: 0; padding-left: 1.25em; display: grid; gap: 7px; font-family: var(--serif); font-size: 15px; line-height: 1.35; }
+.card li b { font-family: var(--sans); font-weight: 700; font-size: .88em; }
+.card li svg { display: inline-block; width: .82em; height: 1.02em; vertical-align: -.14em; margin-inline: .12em; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.card li svg.dots { fill: currentColor; stroke: none; }
+.card .install {
+  align-self: flex-start; font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--mark-ink); background: var(--mark); border: 0; border-radius: 999px; padding: 9px 16px 7px; cursor: pointer;
+}
+/* Who made it, said quietly, on a line of its own at the foot of the page. */
+footer .made { flex-basis: 100%; margin: 0; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; }
+footer .made a { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
+footer .made a:hover { color: var(--fg); text-decoration-style: solid; }
+
+main {
+  margin-top: auto; max-width: 50rem; min-width: 0;
+  display: flex; flex-direction: column; gap: 26px;
+  padding-block: 12px;
+  transition: opacity .4s ease;
+}
+main.fading { opacity: 0; }
+
+/* The line above the sentence: the premise, then the time. Without it a
+   newcomer sees a sentence about a patrol car and no reason for it. */
+.kicker { margin: 0 0 -10px; font-size: 12px; line-height: 1.5; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.kicker b { color: var(--fg); font-weight: 600; white-space: nowrap; }
+
+.quote {
+  margin: 0;
+  font-family: var(--serif); font-weight: 350; font-optical-sizing: auto;
+  font-size: clamp(1.5rem, 3.7vw, 2.7rem); line-height: 1.24; letter-spacing: -.008em;
+  text-wrap: pretty;
+}
+/* Court sentences run long. The type steps down so a long one still fits a small screen. */
+.quote.long { font-size: clamp(1.3rem, 3vw, 2.2rem); }
+.quote.longer { font-size: clamp(1.15rem, 2.5vw, 1.85rem); line-height: 1.3; }
+/* The time, exactly as the court wrote it, under a stroke of highlighter. */
+.quote mark {
+  color: var(--mark-ink); background: var(--mark);
+  padding: 0 .16em; margin: 0 -.04em; border-radius: .12em;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  white-space: nowrap;
+}
+.quote .then { display: block; margin-top: .55em; font-size: .62em; line-height: 1.4; color: var(--muted); font-style: italic; }
+/* On a minute with nothing to show: a few good minutes to go to instead. */
+.good { display: flex; flex-wrap: wrap; gap: 8px 10px; margin: 0; }
+.good button { font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; line-height: 1.3; text-align: left;
+  color: var(--fg); background: none; border: 1px solid var(--line); border-radius: 999px; padding: 9px 15px 8px; cursor: pointer; }
+.good button span { margin-left: 9px; font-weight: 400; color: var(--muted); }
+.good button:hover { border-color: currentColor; }
+.stand .good { display: none; }
+
+.cite { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; font-family: var(--serif); font-size: 17px; line-height: 1.35; color: var(--muted); }
+.cite cite { color: var(--fg); }
+.cite a { font-family: var(--sans); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; white-space: nowrap; }
+.cite a:hover { color: var(--fg); border-bottom-style: solid; }
+
+/* The day: sixty minutes across, twenty-four hours down. */
+.day { padding-top: 14px; margin-bottom: auto; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* The grid never takes more than about half the screen's height, so the sentence and the day fit together on a stand. */
+.dayframe { position: relative; max-width: calc((48vh - 28px) * 2.5 + 54px); }
+.day canvas { display: block; width: 100%; border-radius: 10px; outline: 1px solid var(--line); outline-offset: -1px; cursor: crosshair; touch-action: manipulation; }
+.day .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--muted); }
+.tip {
+  position: absolute; z-index: 5; pointer-events: none; transform: translate(-50%, calc(-100% - 10px));
+  font-family: var(--mono); font-size: 11px; letter-spacing: .04em; white-space: nowrap;
+  background: var(--fg); color: var(--bg); padding: 5px 8px 4px; border-radius: 6px;
+}
+
+footer .controls { display: flex; gap: 12px; align-items: center; }
+footer .count { font-family: var(--mono); letter-spacing: .04em; }
+footer button {
+  letter-spacing: inherit; text-transform: inherit;
+  background: none; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px 6px; cursor: pointer; color: var(--fg);
+}
+footer button:hover { border-color: var(--fg); }
+.status { font-family: var(--serif); font-size: 1.4rem; color: var(--muted); margin: 0; }
+/* The switch between the clocks
+   This clock is one of the Sentence Clocks, and they are one project. The switch floats at the
+   foot of the page, in the middle, with a few words that say what it is for, so that any clock
+   can be reached from any other. The Space Clock is not built yet, so it is shown but cannot be
+   pressed. The switch is not shown on the stand face or once the clock is installed, where the
+   page is being a clock and nothing else. */
+.pair {
+  position: fixed; left: 50%; bottom: max(36px, calc(env(safe-area-inset-bottom, 0px) + 18px)); transform: translateX(-50%); z-index: 20;
+  display: flex; align-items: center; gap: 8px 16px; padding: 6px 6px 6px 20px; border-radius: 999px;
+  width: max-content; max-width: calc(100vw - 24px);
+  background: var(--bg); border: 1px solid var(--line); box-shadow: 0 14px 40px -12px rgba(0, 0, 0, .5);
+  font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+}
+.pair-say { color: var(--fg); white-space: nowrap; }
+.pair-set { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: color-mix(in srgb, var(--fg) 8%, transparent); }
+.pair-set > * { padding: 12px 18px 10px; border-radius: 999px; white-space: nowrap; }
+.pair-set a { color: var(--fg); text-decoration: none; }
+.pair-set a[href]:hover { background: color-mix(in srgb, var(--fg) 12%, transparent); }
+.pair-set [aria-current] { background: var(--fg); color: var(--bg); }
+.pair-set .soon { color: var(--muted); opacity: .7; cursor: not-allowed; }
+.pair-set .soon small { margin-left: 7px; font-size: 8px; letter-spacing: .14em; vertical-align: 1px; }
+footer { padding-bottom: 118px; }   /* room for the switch, so it never sits on the last line */
+@media (max-width: 600px) {
+  .pair { flex-direction: column; padding: 11px 8px 8px; border-radius: 24px; }
+  .pair-set > * { padding: 11px 14px 9px; }
+  footer { padding-bottom: 154px; }
+}
+.stand .pair { display: none; }
+@media (display-mode: standalone) { .pair { display: none; } }
+
+
+@media (max-width: 560px) {
+  header .now, header .sep { display: none; }
+  .cite { font-size: 15px; }
+  /* Two rows: the name and the Add button, then the rest. */
+  header .add-btn { order: 1; margin-left: auto; }
+  header .right { order: 2; flex: 1 0 100%; margin-left: 0; }
+}
+/* The narrowest phones: the Add button gives up a little air so it still sits beside the name. */
+@media (max-width: 340px) {
+  header { column-gap: 10px; }
+  header .add-btn { padding-inline: 10px; letter-spacing: .06em; }
+}
+/* The stand face: only the sentence, its citation, and the time in the corner.
+   The script decides when it is on, and sets --fit to the largest type that fits. */
+.stand body { padding-inline: clamp(20px, 5vw, 64px); }
+.stand header { padding-block: 16px 0; }
+.stand header .link, .stand #today, .stand header .sep, .stand header .add-btn { display: none; }
+.stand header .now { color: var(--fg); font-size: 14px; }
+.stand .kicker, .stand .day, .stand footer { display: none; }
+.stand main { margin-block: auto; max-width: none; gap: clamp(10px, 2.4vh, 22px); padding-block: 10px 22px; }
+.stand .quote, .stand .quote.long, .stand .quote.longer { font-size: var(--fit, 2rem); line-height: 1.2; }
+.stand .cite { font-size: clamp(12px, 2.6vh, 17px); }
+.stand .cite a { display: none; }
+@media (prefers-reduced-motion: reduce) { main { transition: none; } }
+/* Embedded in another page (?embed=1): only the clock itself, on that page's own
+   background (?bg=f7f5f0), with no header, footer or switch, at its natural height. */
+html.embed, html.embed body { height: auto; }
+html.embed { padding: 0; background: var(--bg); }   /* the frame takes the host page's colour, in light and dark */
+html.embed body { padding: 0; background: transparent; }
+html.embed header, html.embed footer, html.embed .pair { display: none !important; }
+html.embed main { margin-top: 0; padding-block: 0; }
+html.embed .map, html.embed .day { margin-bottom: 0; }
+html.embed .dayframe { max-width: none; }
+html.embed .map canvas { max-height: none; }
+/* Shown whole inside another page (?frame=1): the page is as tall as its content, and tells
+   the host that height. The host has its own switch between the clocks. */
+html.framed, html.framed body { height: auto; }
+html.framed .pair { display: none; }
+html.framed footer { padding-bottom: 24px; }
+html.framed .dayframe { max-width: none; }
+/* Only the words about the project (?about=1), for a dialog that another page draws itself:
+   no clock, no bar, no Close button, at their natural height. */
+html.aboutonly, html.aboutonly body { height: auto; }
+html.aboutonly { padding: 0; background: var(--bg); }
+html.aboutonly body { padding: 0; background: transparent; }
+html.aboutonly body > :not(dialog.about) { display: none !important; }
+html.aboutonly dialog.about {
+  position: static; display: block; width: auto; max-width: none; max-height: none; margin: 0;
+  border: 0; border-radius: 0; box-shadow: none; background: transparent; overflow: visible;
+}
+html.aboutonly .about-bar { display: none; }
+html.aboutonly .about-in { overflow: visible; }
+/* About this project
+   The words about the project, in a dialog over the clock. It closes with the Close button,
+   with Escape, or with a click anywhere outside it. */
+dialog.about {
+  width: min(640px, calc(100vw - 28px)); max-height: min(88vh, 780px); padding: 0; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--bg); color: var(--fg);
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .55);
+}
+dialog.about[open] { display: flex; flex-direction: column; }
+dialog.about::backdrop { background: rgba(12, 14, 16, .55); }
+.about-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 14px 12px 26px; border-bottom: 1px solid var(--line); }
+.about-bar .eyebrow { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.about-close {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px 7px; border-radius: 999px; cursor: pointer;
+  font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--fg); background: none; border: 1px solid var(--line);
+}
+.about-close:hover { border-color: var(--fg); }
+.about-close svg { width: 10px; height: 10px; stroke: currentColor; stroke-width: 1.8; fill: none; stroke-linecap: round; }
+.about-in { overflow-y: auto; padding: 24px 26px 30px; display: flex; flex-direction: column; gap: 12px; }
+.about-in h2 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 30px; line-height: 1.15; }
+.about-in h3 { margin: 14px 0 0; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.about-in p, .about-in li, .about-in dd { margin: 0; font-family: var(--serif); font-size: 16.5px; line-height: 1.45; }
+.about-in p.lede { font-size: 19px; }
+.about-in ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; counter-reset: step; }
+.about-in ol li { counter-increment: step; padding-left: 30px; position: relative; }
+.about-in ol li::before { content: counter(step, decimal-leading-zero); position: absolute; left: 0; top: 4px; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--muted); }
+.about-in ol b { font-family: var(--sans); font-weight: 700; font-size: .9em; }
+.about-in dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; }
+.about-in dt { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding-top: 5px; }
+.about-in a { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
+.about-in a:hover { text-decoration-style: solid; }
+</style>
+<script>
+/* Embedded in another page (?embed=1, cut down), shown whole in one (?frame=1), or only the
+   words about the project (?about=1): tell that page how tall this is, so it can fit the frame. */
+{ const p = new URLSearchParams(location.search);
+  if (p.has("embed") || p.has("frame") || p.has("about")) {
+    const root = document.documentElement;
+    root.classList.add(p.has("about") ? "aboutonly" : p.has("embed") ? "embed" : "framed");
+    const bg = p.get("bg") || "";
+    if (/^[0-9a-f]{6}$/i.test(bg)) root.style.setProperty("--bg", "#" + bg);
+    const tell = () => parent.postMessage({ sentenceClock: location.pathname, height: Math.ceil(document.body.getBoundingClientRect().height) }, "*");
+    addEventListener("DOMContentLoaded", () => { new ResizeObserver(tell).observe(document.body); tell(); });
+  }
+}
+</script>
+</head>
+<body>
+
+<header>
+  <span class="brand">Docket Clock</span>
+  <span class="right">
+    <button type="button" class="link" id="about-btn" aria-expanded="false" aria-controls="about">About</button>
+    <span><span id="today"></span><span class="sep" aria-hidden="true"> · </span><span class="now" id="now">--:--</span></span>
+  </span>
+  <button type="button" class="add-btn" id="add-btn" aria-expanded="false" aria-controls="add"><span class="platforms" role="img" aria-label="For iPhone, Android and Chrome"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.4395 5.5586c-.675 1.1664-1.352 2.3318-2.0274 3.498-.0366-.0155-.0742-.0286-.1113-.043-1.8249-.6957-3.484-.8-4.42-.787-1.8551.0185-3.3544.4643-4.2597.8203-.084-.1494-1.7526-3.021-2.0215-3.4864a1.1451 1.1451 0 0 0-.1406-.1914c-.3312-.364-.9054-.4859-1.379-.203-.475.282-.7136.9361-.3886 1.5019 1.9466 3.3696-.0966-.2158 1.9473 3.3593.0172.031-.4946.2642-1.3926 1.0177C2.8987 12.176.452 14.772 0 18.9902h24c-.119-1.1108-.3686-2.099-.7461-3.0683-.7438-1.9118-1.8435-3.2928-2.7402-4.1836a12.1048 12.1048 0 0 0-2.1309-1.6875c.6594-1.122 1.312-2.2559 1.9649-3.3848.2077-.3615.1886-.7956-.0079-1.1191a1.1001 1.1001 0 0 0-.8515-.5332c-.5225-.0536-.9392.3128-1.0488.5449zm-.0391 8.461c.3944.5926.324 1.3306-.1563 1.6503-.4799.3197-1.188.0985-1.582-.4941-.3944-.5927-.324-1.3307.1563-1.6504.4727-.315 1.1812-.1086 1.582.4941zM7.207 13.5273c.4803.3197.5506 1.0577.1563 1.6504-.394.5926-1.1038.8138-1.584.4941-.48-.3197-.5503-1.0577-.1563-1.6504.4008-.6021 1.1087-.8106 1.584-.4941z"/></svg><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0C8.21 0 4.831 1.757 2.632 4.501l3.953 6.848A5.454 5.454 0 0 1 12 6.545h10.691A12 12 0 0 0 12 0zM1.931 5.47A11.943 11.943 0 0 0 0 12c0 6.012 4.42 10.991 10.189 11.864l3.953-6.847a5.45 5.45 0 0 1-6.865-2.29zm13.342 2.166a5.446 5.446 0 0 1 1.45 7.09l.002.001h-.002l-5.344 9.257c.206.01.413.016.621.016 6.627 0 12-5.373 12-12 0-1.54-.29-3.011-.818-4.364zM12 16.364a4.364 4.364 0 1 1 0-8.728 4.364 4.364 0 0 1 0 8.728Z"/></svg></span>Add to your device</button>
+  <div class="card" id="add" role="dialog" aria-label="Add this clock to your device" hidden>
+    <span class="eyebrow">Add to your device</span>
+    <p class="headline">Keep the clock. It runs full screen, like an app.</p>
+    <div class="tabs" id="add-tabs" role="tablist" aria-label="Your device">
+      <button type="button" role="tab" data-os="iphone">iPhone</button>
+      <button type="button" role="tab" data-os="ipad">iPad</button>
+      <button type="button" role="tab" data-os="android">Android</button>
+      <button type="button" role="tab" data-os="computer">Mac or PC</button>
+    </div>
+    <div class="steps" id="add-steps" role="tabpanel"></div>
+    <div class="foot">It is this page, saved to your device. There is nothing to download and nothing to sign in to.</div>
+  </div>
+</header>
+
+<main id="card" aria-live="polite">
+  <p class="status">Pulling the record…</p>
+</main>
+
+<div class="day" id="daywrap">
+  <div class="dayframe">
+    <canvas id="day" tabindex="0" role="img" aria-label="The day as a grid: one dot for each of its 1,440 minutes, larger where the minute appears more often in court opinions"></canvas>
+    <div class="tip" id="tip" hidden></div>
+  </div>
+  <div class="legend"><span>● a minute on the record</span><span>○ never mentioned</span><span id="dayhint">Tap a dot to read that minute.</span></div>
+</div>
+
+<footer>
+  <span id="hint">Every minute of the day, as a court once wrote it down.</span>
+  <span class="controls">
+    <button type="button" id="back" hidden>Back to now</button>
+    <span class="count" id="count"></span>
+    <button type="button" id="next">Another account</button>
+  </span>
+  <p class="made">Made by <a href="https://zularoot.com/" target="_blank" rel="noopener">Zula Root</a></p>
+</footer>
+
+<!-- About this project: the words, in a dialog. The About button opens it, and so does #about in the address. -->
+<dialog class="about" id="about" aria-labelledby="about-title">
+  <div class="about-bar">
+    <span class="eyebrow">About this project</span>
+    <button type="button" class="about-close" id="about-close"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1l8 8M9 1l-8 8"/></svg>Close</button>
+  </div>
+  <div class="about-in">
+    <h2 id="about-title">Sentence Clocks</h2>
+    <p class="lede">Three clocks that tell the time in sentences. One uses train schedules, one court cases, and one rocket launches.</p>
+    <h3>What they are</h3>
+    <p>The Transit Clock shows a real train, ferry, or bus scheduled to leave at the current minute, somewhere in the world. You can choose what part of the world to look at.</p>
+    <p>The Docket Clock shows a sentence from an American court case that mentions the current time. Its grid is the whole day. Each dot represents a minute. The bigger the dot, the more often that minute turns up in the record.</p>
+    <p>The Space Clock shows a real rocket that lifted off at the current minute, by the clock at its launch site. Where no rocket has, it shows something an Apollo astronaut said at that minute, or a research rocket.</p>
+    <h3>What I did</h3>
+    <ol>
+      <li><b>Gathered the data.</b> Train schedules from about thirty transit networks, 145,000 sentences that mention a time from Harvard’s collection of American court cases, and a public log of rocket launches.</li>
+      <li><b>Picked a sentence for every minute.</b> Anything about violence, illness, or children was left out.</li>
+      <li><b>Designed and published them.</b> Each clock is one web page, hosted on GitHub Pages.</li>
+    </ol>
+    <h3>Credits</h3>
+    <dl>
+      <dt>Inspired by</dt><dd>The <a href="https://literature-clock.jenevoldsen.com/" target="_blank" rel="noopener">Literature Clock</a> by Johannes Enevoldsen</dd>
+      <dt>Train schedules</dt><dd>Published by each train, ferry, and bus company</dd>
+      <dt>Court cases</dt><dd>Harvard’s <a href="https://case.law/" target="_blank" rel="noopener">Caselaw Access Project</a></dd>
+      <dt>Launches</dt><dd>The <a href="https://planet4589.org/space/gcat/" target="_blank" rel="noopener">General Catalog of Artificial Space Objects</a> by Jonathan McDowell</dd>
+      <dt>Astronauts’ words</dt><dd>NASA’s air-to-ground transcripts of Apollo 11 and Apollo 12</dd>
+    </dl>
+  </div>
+</dialog>
+
+<nav class="pair" aria-label="The Sentence Clocks">
+  <span class="pair-say">Try the other clocks</span>
+  <span class="pair-set">
+    <a href="../Transit-Clock/" title="The Transit Clock: the time, in real train departures">Transit</a>
+    <span aria-current="page">Docket</span>
+    <a href="../Space-Clock/" title="The Space Clock: the time, in rocket launches">Space</a>
+  </span>
+</nav>
+
+<script>
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, "0");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const params = new URLSearchParams(location.search);
+
+// ?theme=dark or ?theme=light overrides the system setting (useful on a device left on a stand).
+if (/^(dark|light)$/.test(params.get("theme") || "")) document.documentElement.dataset.theme = params.get("theme");
+
+/* ------------------------------------------------------------ data
+   data/HH.json   { "HH:MM": [ { q, s: [start, end], c, ct, y, cite, u } ] }
+                  q is the sentence, s marks where the time sits inside it,
+                  the rest is the citation and a link to the full opinion.
+   data/index.json  how often each minute turned up across everything read. */
+const files = {};
+const load = name => files[name] ??= fetch(`data/${name}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+
+/* ------------------------------------------------------------ time
+   Three clocks are in play. The real one. A pinned one: ?at=02:14 holds the
+   page at that minute so a link can point at a single sentence. And the
+   minute being read, which is the real or pinned minute unless the reader has
+   tapped another one on the grid. */
+const pinned = (() => {
+  const m = (params.get("at") || "").match(/^(\d{1,2}):?(\d{2})$/);
+  return m && +m[1] < 24 && +m[2] < 60 ? +m[1] * 60 + +m[2] : null;
+})();
+const nowMin = () => { if (pinned !== null) return pinned; const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+let browsing = null;                                  // a minute chosen on the grid, or null to follow the clock
+const viewMin = () => browsing ?? nowMin();
+const key = min => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
+
+// Times are written the way the reader's own clock writes them (2:14 a.m. or 02:14).
+const viewer12 = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12;
+function say(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  if (!viewer12) return `${pad(h)}:${pad(m)}`;
+  if (min === 0) return "midnight";
+  if (min === 720) return "noon";
+  return `${h % 12 || 12}:${pad(m)} ${h < 12 ? "a.m." : "p.m."}`;
+}
+
+/* ------------------------------------------------------------ the sentence */
+let list = [], idx = 0, shown = "";
+
+const stop = s => s.endsWith(".") ? s : s + ".";      // a time that ends in "a.m." needs no second full stop
+
+/* Good minutes: a minute with nothing to show offers three of these to go to instead. Which
+   three depends on the minute, so different empty minutes offer different ones. Each is a
+   minute of the day and a name for what it opens with: the case its sentence is from.
+   If a sentence here is ever taken out of the clock, change this list too. */
+const GOOD = [[0, "Lewis v. A Lot of Whalebone"], [1020, "McComas v. Al. G. Barnes Shows Co."], [1, "United States v. Loyd"], [720, "Darlington v. State Road Commission"], [134, "State v. Clay"], [1300, "Wolfe v. Menard, Inc."]];
+const good = min => `<p class="good">${[0, 1, 2].map(i => GOOD[(min + i) % GOOD.length]).map(([m, name]) =>
+  `<button type="button" data-min="${m}">${esc(say(m))}<span>${esc(name)}</span></button>`).join("")}</p>`;
+
+function render() {
+  const min = viewMin(), t = say(min), x = list[idx];
+  const kicker = `<p class="kicker">Every minute is on the record. <b>This is ${esc(t)}${t.endsWith(".") ? "" : "."}</b></p>`;
+  if (!x) {
+    // An empty minute, and there are two kinds. A couple of minutes turned up nowhere in
+    // everything read. A few more turned up only in sentences nobody should meet on a clock:
+    // those are left empty on purpose, and the page says so.
+    const named = grid.count(min) > 0, stop = t.endsWith(".") ? "" : ".";
+    $("card").innerHTML = `${kicker}
+      <p class="quote">${named ? `The record mentions <mark>${esc(t)}</mark>, but not in a sentence fit for a clock.` : `No court has had anything to say about <mark>${esc(t)}</mark>${stop}`}
+        <span class="then">${named ? "Some minutes are only on the record for the worst reasons. This is one of them." : "No data for this time."} Here are some good minutes:</span></p>
+      ${good(min)}`;
+    $("count").textContent = ""; $("next").hidden = true;
+    fit();
+    return;
+  }
+  const [i, j] = x.s;
+  const size = x.q.length > 250 ? " longer" : x.q.length > 170 ? " long" : "";
+  $("card").innerHTML = `${kicker}
+    <p class="quote${size}">${esc(x.q.slice(0, i))}<mark>${esc(x.q.slice(i, j))}</mark>${esc(x.q.slice(j))}</p>
+    <p class="cite"><span><cite>${esc(x.c)}</cite>, ${esc(x.cite)} (${esc([x.ct, x.y].filter(Boolean).join(" "))})</span>
+      <a href="${esc(x.u)}" target="_blank" rel="noopener">Read the opinion ↗</a></p>`;
+  $("count").textContent = list.length > 1 ? `${idx + 1} / ${list.length}` : "";
+  $("next").hidden = list.length < 2;
+  $("next").textContent = /^\d/.test(t) ? `Another ${t.replace(/ [ap]\.m\.$/, "")}` : "Another account";
+  fit();
+}
+
+function show(i, fade = true) {
+  idx = list.length ? (i + list.length) % list.length : 0;
+  if (!fade || reduced()) return render();
+  $("card").classList.add("fading");
+  setTimeout(() => { render(); $("card").classList.remove("fading"); }, 320);
+}
+
+async function refresh(force) {
+  const real = new Date(), min = viewMin();
+  $("now").textContent = say(nowMin());
+  $("today").textContent = real.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+  if (key(min) === shown && !force) return;
+  const first = shown === "";
+  shown = key(min);
+  try {
+    const day = await load(pad(Math.floor(min / 60)));
+    if (min % 60 >= 55) load(pad((Math.floor(min / 60) + 1) % 24)).catch(() => {});      // have the next hour ready
+    list = day[key(min)] || [];
+    show(0, !first);                                   // the first sentence is the one chosen to open the minute
+    $("hint").textContent = browsing !== null ? `Reading ${stop(say(min))} The clock itself says ${stop(say(nowMin()))}` : list.length ? "Quoted from a real court opinion that names this exact minute." : "";
+    $("back").hidden = browsing === null;
+    grid.draw();
+  } catch (e) {
+    shown = "";
+    $("card").innerHTML = `<p class="status">The record didn’t load. Serve this folder over HTTP (for example <code>python3 -m http.server</code>) and reload.</p>`;
+  }
+}
+function tick() { refresh(); setTimeout(tick, 1000 - (Date.now() % 1000) + 5); }
+
+/* ------------------------------------------------------------ the day: 1,440 dots
+   Sixty minutes across, twenty-four hours down. A dot's size is how often
+   that minute turned up in everything read, on a log scale, so two in the
+   morning does not drown out half past ten. Minutes nobody has named are
+   drawn as empty rings. The minute on screen is filled in the accent colour. */
+const grid = (() => {
+  const canvas = $("day"), ctx = canvas.getContext("2d"), tip = $("tip");
+  let counts = null, W = 0, H = 0, cell = 0, left = 0, top = 0, colors = {};
+  const LABEL = 44;                                    // room on the left for the hour labels
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const k of ["fg", "bg", "muted", "line", "dot", "now"]) colors[k] = cs.getPropertyValue(`--${k}`).trim();
+  }
+  function resize() {
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    W = canvas.clientWidth; if (!W) return;
+    left = W < 480 ? 36 : LABEL; top = 18;
+    cell = (W - left - 10) / 60;
+    H = Math.round(top + cell * 24 + 10);
+    canvas.style.height = H + "px";
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+  const at = (m) => [left + (m % 60 + .5) * cell, top + (Math.floor(m / 60) + .5) * cell];
+  function draw() {
+    if (!W || !counts) return;
+    ctx.clearRect(0, 0, W, H);
+    const big = Math.log(1 + 400), cur = viewMin(), real = nowMin();
+    ctx.font = `${W < 480 ? 8 : 10}px "Overpass Mono", ui-monospace, Menlo, monospace`;
+    ctx.fillStyle = colors.muted; ctx.textBaseline = "middle"; ctx.textAlign = "right";
+    for (const h of [0, 6, 12, 18]) ctx.fillText(viewer12 ? ["12 AM", "6 AM", "NOON", "6 PM"][h / 6] : pad(h) + ":00", left - 8, at(h * 60)[1]);
+    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    for (const m of [0, 15, 30, 45]) ctx.fillText(":" + pad(m), at(m)[0], top - 6);
+    for (let m = 0; m < 1440; m++) {
+      const [x, y] = at(m), n = counts[m];
+      if (m === cur) continue;
+      if (!n) {
+        ctx.beginPath(); ctx.arc(x, y, cell * .2, 0, 6.2832); ctx.strokeStyle = colors.muted; ctx.lineWidth = 1; ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.arc(x, y, Math.max(.7, cell * (.1 + .3 * Math.min(1, Math.log(1 + n) / big))), 0, 6.2832);
+        ctx.fillStyle = colors.dot; ctx.fill();
+      }
+    }
+    if (real !== cur) {                                // while browsing, the real minute keeps a ring
+      const [x, y] = at(real); ctx.beginPath(); ctx.arc(x, y, cell * .46, 0, 6.2832); ctx.strokeStyle = colors.now; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    const [x, y] = at(cur);
+    ctx.beginPath(); ctx.arc(x, y, Math.max(3, cell * .5), 0, 6.2832); ctx.fillStyle = colors.now; ctx.fill();
+  }
+  function minuteAt(ev) {
+    const r = canvas.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
+    const c = Math.floor((x - left) / cell), row = Math.floor((y - top) / cell);
+    return c >= 0 && c < 60 && row >= 0 && row < 24 ? row * 60 + c : null;
+  }
+  canvas.addEventListener("pointermove", ev => {
+    const m = ev.pointerType === "mouse" ? minuteAt(ev) : null;
+    if (m === null || !counts) { tip.hidden = true; return; }
+    const [x, y] = at(m), n = counts[m];
+    tip.textContent = `${say(m)} · ${n ? (n >= 999 ? "999+" : n) + (n === 1 ? " mention" : " mentions") : "never mentioned"}`;
+    tip.style.left = x + "px"; tip.style.top = y + "px"; tip.hidden = false;
+  });
+  canvas.addEventListener("pointerleave", () => { tip.hidden = true; });
+  canvas.addEventListener("click", ev => { const m = minuteAt(ev); if (m !== null) browse(m); });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readColors(); draw(); });
+  new ResizeObserver(resize).observe(canvas);
+  readColors();
+  load("index").then(ix => {
+    counts = ix.counts; draw();
+  }).catch(() => { $("daywrap").hidden = true; });
+  return { draw, resize, count: m => counts ? counts[m] : 0 };
+})();
+
+/* ------------------------------------------------------------ the stand face
+   Stood on a desk, a phone is a small, wide screen read from across a room.
+   The stand face is the clock cut down to what can be read from there: the
+   sentence, set as large as will fit, its citation, and the time in the corner.
+   It comes on by itself on a short, wide screen (a phone on its side, a folded
+   phone standing like a tent). ?face=stand asks for it on any screen, and
+   ?face=full keeps the whole page.
+
+   This is the page running full screen, not iOS StandBy. StandBy only shows
+   widgets from installed apps, which a web page cannot provide. */
+const faceParam = new URLSearchParams(location.search).get("face");
+const standQuery = matchMedia("(max-height: 540px) and (min-aspect-ratio: 5/4)");
+function fit() {
+  const q = document.querySelector("#card .quote");
+  if (!q) return;
+  if (!document.documentElement.classList.contains("stand")) { q.style.removeProperty("--fit"); return; }
+  // The largest type at which nothing spills off the screen. A clock does not scroll.
+  const fits = () => document.documentElement.scrollHeight <= innerHeight + 1;
+  let lo = 14, hi = Math.round(Math.min(innerHeight * .17, innerWidth * .085));
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; q.style.setProperty("--fit", mid + "px"); if (fits()) lo = mid; else hi = mid; }
+  q.style.setProperty("--fit", lo + "px");
+}
+function setFace() {
+  document.documentElement.classList.toggle("stand", faceParam === "stand" || (faceParam !== "full" && standQuery.matches));
+  fit();
+}
+standQuery.addEventListener("change", setFace);
+addEventListener("resize", fit);
+if (document.fonts) document.fonts.ready.then(fit);
+
+/* Reading another minute, and coming back */
+// A good minute, pressed on an empty one: go and read it.
+$("card").addEventListener("click", e => { const b = e.target.closest(".good button"); if (b) browse(+b.dataset.min); });
+function browse(min) {
+  browsing = min === nowMin() ? null : (min + 1440) % 1440;
+  refresh(true);
+}
+
+/* ------------------------------------------------------------ about this project: the words, in a dialog */
+function toggleAbout(open) {
+  const d = $("about");
+  open ??= !d.open;
+  const root = document.documentElement;
+  if (root.classList.contains("framed")) {   // shown whole in another page: that page draws the dialog, over itself
+    if (open) parent.postMessage({ sentenceClock: location.pathname, about: true }, "*");
+    return;
+  }
+  if (root.classList.contains("aboutonly")) { if (!d.open) { d.show(); document.activeElement?.blur(); } return; }   // only the words: always shown, never closed here
+  if (open && !d.open) { toggleAdd(false); d.showModal(); $("about-btn").setAttribute("aria-expanded", "true"); }
+  if (!open && d.open) d.close();
+}
+$("about-btn").addEventListener("click", e => { e.stopPropagation(); toggleAbout(true); });
+$("about-close").addEventListener("click", () => toggleAbout(false));
+$("about").addEventListener("click", e => { if (e.target === $("about")) toggleAbout(false); });   // a click outside the words
+$("about").addEventListener("close", () => $("about-btn").setAttribute("aria-expanded", "false"));
+if (location.hash === "#about" || document.documentElement.classList.contains("aboutonly")) setTimeout(() => toggleAbout(true), 0);   // after the rest of the page is set up
+/* Only the words, inside another page's dialog: Escape here closes that dialog. */
+if (document.documentElement.classList.contains("aboutonly")) addEventListener("keydown", e => { if (e.key === "Escape") parent.postMessage({ sentenceClock: location.pathname, about: false }, "*"); });
+
+/* ------------------------------------------------------------ add to your device
+   The clock is a web page, and a web page cannot put itself on a Home Screen: the person has
+   to do it from the browser's own menu, and the menu is different on every device. So the
+   button opens a card with the steps for the device in hand, and tabs for the others.
+
+   Chrome and Edge, on Android and on a computer, will sometimes offer to install a page
+   themselves. When one does, the card shows a real Install button above the steps. */
+// The icons are drawn here, because the text faces on this page have no three-dot characters.
+const SHARE = `<svg viewBox="0 0 17 21" role="img" aria-label="the Share icon"><path d="M5 7H2.5v12.5h12V7H12M8.5 13V1.5M5 4.6l3.5-3.1L12 4.6"/></svg>`;
+const dots = (label, across) => `<svg class="dots" viewBox="0 0 17 21" role="img" aria-label="${label}">${[4.5, 10.5, 16.5].map(v => `<circle cx="${across ? v - 2 : 8.5}" cy="${across ? 12.5 : v}" r="1.5"/>`).join("")}</svg>`;
+const MORE_DOWN = dots("the three-dot menu", false), MORE_ACROSS = dots("the three-dot button", true);
+const ADD_STEPS = {
+  iphone: `<ol>
+      <li>Open this page in <b>Safari</b>.</li>
+      <li>Tap <b>Share</b> ${SHARE}. On a newer iPhone it is behind the ${MORE_ACROSS} button.</li>
+      <li>Choose <b>Add to Home Screen</b>, then <b>Add</b>.</li>
+      <li>Open <b>Docket Clock</b> from its new icon.</li>
+    </ol>
+    <p class="note">Turn the phone on its side, or fold it into a tent, and the clock becomes one large sentence.</p>`,
+  ipad: `<ol>
+      <li>Open this page in <b>Safari</b>.</li>
+      <li>Tap <b>Share</b> ${SHARE} in the toolbar.</li>
+      <li>Choose <b>Add to Home Screen</b>, then <b>Add</b>.</li>
+      <li>Open <b>Docket Clock</b> from its new icon, and stand the iPad up.</li>
+    </ol>`,
+  android: `<ol>
+      <li>Open this page in <b>Chrome</b>.</li>
+      <li>Tap ${MORE_DOWN}, then <b>Add to Home screen</b>.</li>
+      <li>Choose <b>Install</b>.</li>
+    </ol>
+    <p class="note">Turn the phone on its side and the clock becomes one large sentence.</p>`,
+  computer: `<ul>
+      <li><b>Chrome:</b> open the ${MORE_DOWN} menu, then <b>Cast, Save and Share</b>, and choose <b>Install</b>.</li>
+      <li><b>Edge:</b> open the ${MORE_ACROSS} menu, then <b>Apps</b>, and choose <b>Install</b>.</li>
+      <li><b>Safari on a Mac:</b> choose <b>File</b>, then <b>Add to Dock</b>.</li>
+    </ul>`,
+};
+// iPadOS calls itself a Mac, so a Mac with a touch screen is taken to be an iPad.
+function thisDevice() {
+  const ua = navigator.userAgent;
+  if (/Android/i.test(ua)) return "android";
+  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return "ipad";
+  if (/iPhone|iPod/.test(ua)) return "iphone";
+  return "computer";
+}
+let addOs = thisDevice(), installOffer = null;
+function drawAdd() {
+  for (const tab of $("add-tabs").children) tab.setAttribute("aria-selected", String(tab.dataset.os === addOs));
+  // The browser's own offer only applies to the device the page is open on.
+  const offer = installOffer && addOs === thisDevice() ? `<button type="button" class="install" id="install">Install Docket Clock</button>` : "";
+  $("add-steps").innerHTML = offer + ADD_STEPS[addOs];
+}
+function toggleAdd(open) {
+  const card = $("add"), btn = $("add-btn");
+  open ??= card.hidden;
+  if (open) { toggleAbout(false); addOs = thisDevice(); drawAdd(); }
+  card.hidden = !open; btn.setAttribute("aria-expanded", String(open));
+}
+$("add-btn").addEventListener("click", e => { e.stopPropagation(); toggleAdd(); });
+$("add-tabs").addEventListener("click", e => { const tab = e.target.closest("[data-os]"); if (tab) { addOs = tab.dataset.os; drawAdd(); } });
+$("add-steps").addEventListener("click", async e => {
+  if (!e.target.closest("#install") || !installOffer) return;
+  installOffer.prompt();
+  await installOffer.userChoice.catch(() => {});
+  installOffer = null; drawAdd();
+});
+document.addEventListener("click", e => { if (!$("add").hidden && !e.target.closest("#add")) toggleAdd(false); });
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); installOffer = e; if (!$("add").hidden) drawAdd(); });
+// Once it is on the device there is nothing left to offer: not after installing, and not when opened from the icon.
+const hideAdd = () => { toggleAdd(false); $("add-btn").hidden = true; };
+addEventListener("appinstalled", hideAdd);
+if (matchMedia("(display-mode: standalone)").matches || navigator.standalone) hideAdd();
+
+/* ------------------------------------------------------------ wiring */
+$("next").addEventListener("click", () => show(idx + 1));
+$("back").addEventListener("click", () => browse(nowMin()));
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    if (!$("add").hidden) { toggleAdd(false); $("add-btn").focus(); }
+    else if ($("about").open) { toggleAbout(false); $("about-btn").focus(); }
+    else if (browsing !== null) browse(nowMin());
+    return;
+  }
+  if (e.target.closest("button, a")) return;
+  if (e.key === " ") { e.preventDefault(); show(idx + 1); }
+  if (e.key === "ArrowRight") browse(viewMin() + 1);          // step through the day a minute at a time
+  if (e.key === "ArrowLeft") browse(viewMin() - 1);
+  if (e.key === "ArrowDown") { e.preventDefault(); browse(viewMin() + 60); }
+  if (e.key === "ArrowUp") { e.preventDefault(); browse(viewMin() - 60); }
+});
+
+/* Stay awake
+   Left open on a phone or tablet stand, this is a desk clock, and a desk clock
+   should not go dark after thirty seconds. Where the browser allows it, the
+   page asks to keep the screen on while it is visible. The browser drops the
+   lock whenever the page is hidden, so it is asked for again on return. */
+async function stayAwake() {
+  if (!("wakeLock" in navigator) || document.visibilityState !== "visible") return;
+  try { await navigator.wakeLock.request("screen"); } catch {}   // refused on low battery; the clock still works
+}
+document.addEventListener("visibilitychange", stayAwake);
+stayAwake();
+
+// The switch to the other clock carries the theme along, when the address is holding one.
+{ const t = new URLSearchParams(location.search).get("theme");
+  if (t === "dark" || t === "light") for (const a of document.querySelectorAll(".pair a[href]")) a.href += `?theme=${t}`; }
+
+setFace();
+tick();
+</script>
+</body>
+</html>
